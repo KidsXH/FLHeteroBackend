@@ -123,7 +123,7 @@ def get_pca_result(step_size, radius):
     # g_size = [len(g) for g in grouped_labels]
     # print('Divided into {} Groups: ({})'.format(len(grouped_labels), g_size))
     # print(grouped_id)
-    mdl = PCA()
+    mdl = PCA(n_components=2)
     mdl.fit(data)
     pca = {
         'cp1': mdl.components_[0].tolist(),

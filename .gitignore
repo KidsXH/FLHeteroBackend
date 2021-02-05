@@ -25,3 +25,4 @@ venv.bak/
 
 # Data File
 data/
+*.json

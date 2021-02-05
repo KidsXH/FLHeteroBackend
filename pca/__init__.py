@@ -16,16 +16,14 @@ sys.setrecursionlimit(1000000)
 def load_samples(filename, standardize=False):
     with open(filename, 'r') as f:
         data = json.load(f)
-        x_positive = np.array(data['positive'])
-        x_negative = np.array(data['negative'])
-
-    data = np.concatenate((x_positive, x_negative))
-    labels = np.array(len(x_positive) * [1] + len(x_negative) * [0])
+        labels_real = np.array(data['labels_real'])
+        labels_het = np.array(data['labels_het'])
+        data = np.array(data['samples'])
 
     if standardize:
         data = (data - np.min(data)) / (np.max(data) - np.min(data))
 
-    return data, labels
+    return data, labels_real, labels_het
 
 
 def pca_show_figure(data, labels):
@@ -41,9 +39,10 @@ def show_figure(data, labels, alpha=0.6, title=''):
     plt.show()
 
 
-def grouping(data, labels, step_size, radius):
+def grouping(data, labels_r, labels_h, step_size, radius):
     # negative points
-    data_n = data[labels == 0]
+    data_n = data[labels_h == 0]
+    labels_r_n = labels_r[labels_h == 0]
     n = data_n.shape[0]
 
     # Union-Find Set
@@ -76,14 +75,17 @@ def grouping(data, labels, step_size, radius):
     groups.pop()
 
     grouped_data = [[]] * (len(groups))
-    grouped_labels = [[]] * (len(groups))
+    grouped_labels_r = [[]] * (len(groups))
+    grouped_labels_h = [[]] * (len(groups))
 
     for gid, g in enumerate(groups):
         grouped_data[gid] = data_n[g].tolist()
-        grouped_labels[gid] = [0] * len(g)
+        grouped_labels_r[gid] = labels_r_n[g].tolist()
+        grouped_labels_h[gid] = [0] * len(g)
 
-    data_p = data[labels == 1]
-    for features in data_p:
+    data_p = data[labels_h == 1]
+    labels_r_p = labels_r[labels_h == 1]
+    for features, label in zip(data_p, labels_r_p):
         min_gid = -1
         min_dist = radius
         for gid, g in enumerate(groups):
@@ -93,13 +95,14 @@ def grouping(data, labels, step_size, radius):
                     min_dist, min_gid = dist, gid
         if min_gid != -1:
             grouped_data[min_gid].append(features)
-            grouped_labels[min_gid].append(1)
+            grouped_labels_r[min_gid].append(label)
+            grouped_labels_h[min_gid].append(1)
 
-    return grouped_data, grouped_labels
+    return grouped_data, grouped_labels_r, grouped_labels_h
 
 
 def get_pca_result(step_size, radius):
-    data, labels = load_samples(os.path.join(settings.DATA_DIR, 'samples.json'), standardize=True)
+    data, labels_real, labels_het = load_samples(os.path.join(settings.DATA_DIR, 'samples.json'), standardize=True)
     # print('Samples loaded.')
     n = data.shape[0]
     for i in range(n):
@@ -109,17 +112,17 @@ def get_pca_result(step_size, radius):
     # pca_show_figure(data, labels)
 
     # print('Grouping')
-    grouped_data, grouped_labels = grouping(data, labels, step_size, radius)
+    grouped_data, grouped_labels_r, grouped_labels_h = grouping(data, labels_real, labels_het, step_size, radius)
     # g_size = [len(g) for g in grouped_labels]
     # print('Divided into {} Groups: ({})'.format(len(grouped_labels), g_size))
 
     hetero_list = []
     mdl = CPCA()
-    for gid, (data, labels) in enumerate(zip(grouped_data, grouped_labels)):
+    for gid, (data, labels_r, labels_h) in enumerate(zip(grouped_data, grouped_labels_r, grouped_labels_h)):
         data = np.array(data)
         # print('Data: {}'.format(data))
         # print('Labels: {}'.format(labels))
-        projected_data, cp = mdl.fit_transform(data, labels, alpha=0, standardized=False)
+        projected_data, cp = mdl.fit_transform(data, labels_h, alpha=0, standardized=False)
         projected_data[:, 0] = feature_standardize(projected_data[:, 0])
         projected_data[:, 1] = feature_standardize(projected_data[:, 1])
         try:
@@ -129,9 +132,9 @@ def get_pca_result(step_size, radius):
             projected_data = projected_data.real
             cp = cp.real
             projected_data = np.floor(projected_data * 10).astype(np.int)
-        hetero_size = (np.array(labels) == 0).sum()
+        hetero_size = (np.array(labels_h) == 0).sum()
         count = np.zeros((2, 11, 11), dtype=np.int)
-        for (d, label) in zip(projected_data, labels):
+        for (d, label) in zip(projected_data, labels_r):
             count[label][d[0]][d[1]] += 1
         mat = np.zeros((11, 11), dtype=np.float)
         for i in range(11):

@@ -22,8 +22,10 @@ def predict(client_name, time):
 
     test_loader = get_client_data_loader(client_name)
 
-    good_samples = []
-    bad_samples = []
+    samples = []
+    labels_real = []
+    labels_het = []
+
     correct_s = 0
     correct_c = 0
     total = 0
@@ -38,20 +40,23 @@ def predict(client_name, time):
             total += labels.size(0)
             correct_s += (predicted_s == labels).sum().item()
             correct_c += (predicted_c == labels).sum().item()
-            good_samples.append(inputs[predicted_c == predicted_s].cpu().numpy())
-            bad_samples.append(inputs[predicted_c != predicted_s].cpu().numpy())
+            samples.append(inputs.cpu().numpy())
+            labels_real.append(labels.cpu().numpy())
+            labels_het.append((predicted_s == predicted_c).cpu().numpy())
 
     # print('Acc_server: {} Acc_client: {}'.format(correct_s / total, correct_c / total))
-    good_samples = np.concatenate(good_samples)
-    bad_samples = np.concatenate(bad_samples)
+    samples = np.concatenate(samples)
+    labels_real = np.concatenate(labels_real)
+    labels_het = np.concatenate(labels_het)
     # print('Good Samples {}, Bad Samples: {}'.format(good_samples.shape, bad_samples.shape))
 
     syn_data = {
-        'positive': good_samples.tolist(),
-        'negative': bad_samples.tolist(),
+        'samples': samples.tolist(),
+        'labels_real': labels_real.tolist(),
+        'labels_het': labels_het.tolist(),
     }
 
-    with open('data/samples.json', 'w') as f:
+    with open(os.path.join(settings.DATA_DIR, 'samples.json'), 'w') as f:
         json.dump(syn_data, f)
 
 

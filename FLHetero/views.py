@@ -36,8 +36,13 @@ def identify(request):
         client_name = request_data['client']
         step_size = request_data['step']
         predict(client_name, time)
-        hetero_list = get_pca_result(step_size, radius=5)
-        data = {'heteroList': hetero_list}
+        hetero_list, pca, labels_het, fed_result = get_pca_result(step_size, radius=10)
+        data = {
+            'heteroList': hetero_list,
+            'pca': pca,
+            'heteroLabels': labels_het,
+            'fedResult': fed_result,
+        }
         return JsonResponse(data)
 
 

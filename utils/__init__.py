@@ -8,8 +8,8 @@ def load_fed_weight():
     pass
 
 
-def load_history():
-    with open(os.path.join(settings.DATA_DIR, 'history.json')) as f:
+def load_history(filename):
+    with open(filename) as f:
         data = json.load(f)
     return data
 

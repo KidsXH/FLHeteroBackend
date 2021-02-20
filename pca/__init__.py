@@ -2,175 +2,91 @@ import json
 import os
 import numpy as np
 from sklearn.decomposition import PCA
+from sklearn.cluster import AgglomerativeClustering
 from matplotlib import pyplot as plt
 
 from FLHeteroBackend import settings
 from pca.cpca import CPCA
 from utils import chebyshev_distance, euclidean_distance, grid, feature_standardize
-import sys
-
-sys.setrecursionlimit(1000000)
 
 
-def load_samples(filename, standardize=False):
+def load_samples(filename):
     with open(filename, 'r') as f:
         data = json.load(f)
-        labels_real = np.array(data['labels_real'])
-        labels_het = np.array(data['labels_het'])
-        fed_result = np.array(data['fed_result'])
-        data = np.array(data['samples'])
-
-    if standardize:
-        data = (data - np.min(data)) / (np.max(data) - np.min(data))
-
-    return data, labels_real, labels_het, fed_result
+        outputs_server = np.array(data['outputs_server'])
+        outputs_client = np.array(data['outputs_client'])
+        ground_truth = np.array(data['ground_truth'])
+        local_data = np.array(data['local_data'])
+        samples = np.array(data['samples'])
+    return samples, local_data, ground_truth, outputs_client, outputs_server
 
 
-def pca_show_figure(data, labels):
+def pca_show_figure(data, labels, title='PCA'):
     mdl = PCA(n_components=2)
     projected_data = mdl.fit_transform(data)
-    show_figure(projected_data, labels, title='PCA')
+    show_figure(projected_data, labels, title=title)
 
 
 def show_figure(data, labels, alpha=0.6, title=''):
     plt.figure()
     plt.scatter(*data.T, c=labels, alpha=alpha)
     plt.title(title)
+    plt.colorbar()
     plt.show()
 
 
-def grouping(data, labels_r, labels_h, step_size, radius):
-    # negative points
-    neg_idx = labels_h == 0
-    data_n = data[neg_idx]
-    labels_r_n = labels_r[neg_idx]
-    id_n = np.arange(0, data.shape[0], 1, dtype=int)[neg_idx]
-    n = neg_idx.sum()
-
-    # Union-Find Set
-    father = np.arange(0, n, 1, dtype=np.int)
-
-    def find(x):
-        if x == father[x]:
-            return x
-        else:
-            father[x] = find(father[x])
-            return father[x]
-
-    for i in range(n):
-        # print('')
-        for j in range(i + 1, n):
-            # print(chebyshev_distance(data_n[i], data_n[j]), end=' ')
-            if chebyshev_distance(data_n[i], data_n[j]) <= step_size:
-                father[find(i)] = find(j)
-
-    groups = [[]]
-    for i in range(n):
-        for g in groups:
-            if len(g) == 0:
-                g.append(i)
-                groups.append([])
-                break
-            elif find(g[0]) == find(i):
-                g.append(i)
-                break
-    groups.pop()
-
-    grouped_id = [[]] * (len(groups))
-    grouped_data = [[]] * (len(groups))
-    grouped_labels_r = [[]] * (len(groups))
-    grouped_labels_h = [[]] * (len(groups))
-
-    for gid, g in enumerate(groups):
-        grouped_id[gid] = id_n[g].tolist()
-        grouped_data[gid] = data_n[g].tolist()
-        grouped_labels_r[gid] = labels_r_n[g].tolist()
-        grouped_labels_h[gid] = [0] * len(g)
-
-    for idx, (features, label) in enumerate(zip(data, labels_r)):
-        if labels_h[idx] == 0:
-            continue
-        min_gid = -1
-        min_dist = radius
-        for gid, g in enumerate(groups):
-            for _idx in g:
-                dist = euclidean_distance(features, data_n[_idx])
-                if min_dist > dist:
-                    min_dist, min_gid = dist, gid
-        if min_gid != -1:
-            grouped_id[min_gid].append(idx)
-            grouped_data[min_gid].append(features)
-            grouped_labels_r[min_gid].append(label)
-            grouped_labels_h[min_gid].append(1)
-
-    return grouped_id, grouped_data, grouped_labels_r, grouped_labels_h
-
-
-def get_pca_result(step_size, radius):
-    data, labels_real, labels_het, fed_result = load_samples(os.path.join(settings.DATA_DIR, 'samples.json'),
-                                                             standardize=True)
-    # print('Samples loaded.')
+def get_pca_result(n_clusters, data, ground_truth, outputs_client, outputs_server):
     n = data.shape[0]
-    for i in range(n):
-        data[i] = grid(data[i], n=10)
-    # print('Data preprocessed.')
-
-    # pca_show_figure(data, labels)
-
-    # print('Grouping')
-    grouped_id, grouped_data, grouped_labels_r, grouped_labels_h = grouping(data, labels_real, labels_het, step_size,
-                                                                            radius)
-    # g_size = [len(g) for g in grouped_labels]
-    # print('Divided into {} Groups: ({})'.format(len(grouped_labels), g_size))
-    # print(grouped_id)
+    # PCA
     mdl = PCA(n_components=2)
     mdl.fit(data)
     pca = {
-        'cp1': mdl.components_[0].tolist(),
-        'cp2': mdl.components_[1].tolist(),
+        'pc1': mdl.components_[0].tolist(),
+        'pc2': mdl.components_[1].tolist(),
         'projectedData': mdl.transform(data).tolist(),
     }
 
-    hetero_list = []
+    # Hetero
+    idx = outputs_client != outputs_server
+    hetero_samples = {'data': data[idx], 'labels': ground_truth[idx], 'index': np.arange(0, n, 1)[idx]}
+    # Homo
+    idx = outputs_client == outputs_server
+    homo_samples = {'data': data[idx], 'labels': ground_truth[idx], 'index': np.arange(0, n, 1)[idx]}
+
+    ac = AgglomerativeClustering(n_clusters=n_clusters)
+    labels_cls = ac.fit_predict(hetero_samples['data'])
+    labels_cls = labels_cls
+
     mdl = CPCA()
-    for gid, (idx, data, labels_r, labels_h) in enumerate(zip(grouped_id, grouped_data, grouped_labels_r,
-                                                              grouped_labels_h)):
-        data = np.array(data)
-        # print('Data: {}'.format(data))
-        # print('Labels: {}'.format(labels))
-        projected_data, cp = mdl.fit_transform(data, labels_h, alpha=0, standardized=False)
-        c_data = projected_data
-        c_data[:, 0] = feature_standardize(projected_data[:, 0])
-        c_data[:, 1] = feature_standardize(projected_data[:, 1])
-        try:
-            c_data = np.floor(c_data * 10).astype(np.int)
-        except TypeError:
-            print('Complex transferred to real. gid: {}, g_size: {}'.format(gid, len(labels_r)))
-            projected_data = projected_data.real
-            c_data = c_data.real
-            cp = cp.real
-            c_data = np.floor(c_data * 10).astype(np.int)
-        hetero_size = (np.array(labels_h) == 0).sum()
-        count = np.zeros((2, 11, 11), dtype=np.int)
-        for (d, label) in zip(c_data, labels_r):
-            count[label][d[0]][d[1]] += 1
-        mat = np.zeros((11, 11), dtype=np.float)
-        for i in range(11):
-            for j in range(11):
-                if count[0][i][j] == 0:
-                    mat[i][j] = 0
-                else:
-                    mat[i][j] = count[0][i][j] / (count[0][i][j] + count[1][i][j])
+    hetero_list = []
+
+    for i in range(n_clusters):
+        idx = labels_cls == i
+        bg = hetero_samples['data'][idx]
+        fg = np.concatenate((homo_samples['data'], bg))
+
+        transformed_data, cpcs = mdl.fit_transform(fg, bg, alpha=30)
+        transformed_data = transformed_data.real
+        cpcs = cpcs.real
+
+        hetero_size = idx.sum()
+        data_id = np.concatenate((homo_samples['index'], hetero_samples['index'][idx]))
 
         het = {
             'cpca': {
-                'cp1': cp[0].tolist(),
-                'cp2': cp[1].tolist(),
-                'projectedData': projected_data.tolist()
+                'cpc1': cpcs[0].tolist(),
+                'cpc2': cpcs[1].tolist(),
+                'projectedData': transformed_data.tolist()
             },
             'heteroSize': int(hetero_size),
-            'dataMatrix': mat.tolist(),
-            'dataID': idx
+            'dataID': data_id.tolist()
         }
         hetero_list.append(het)
-    return hetero_list, pca, labels_het.tolist(), fed_result.tolist()
+
+        # m = homo_samples['data'].shape[0]
+        # plt.title('CLuster{}, alpha={}'.format(i, 0))
+        # plt.scatter(*transformed_data[:m].T, c='black', alpha=0.3)
+        # plt.scatter(*transformed_data[m:].T, c='red', alpha=0.3)
+        # plt.show()
+
+    return hetero_list, pca

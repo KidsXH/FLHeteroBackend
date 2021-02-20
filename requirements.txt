@@ -29,3 +29,8 @@ torchvision==0.8.2
 tornado @ file:///C:/ci/tornado_1606942392901/work
 typing-extensions @ file:///tmp/build/80754af9/typing_extensions_1598376058250/work
 wincertstore==0.2
+numpy~=1.19.2
+scikit-learn~=0.23.2
+matplotlib~=3.3.2
+tqdm~=4.56.0
+django~=3.1.5

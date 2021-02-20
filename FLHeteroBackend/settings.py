@@ -121,3 +121,9 @@ USE_TZ = True
 STATIC_URL = '/static/'
 
 DATA_DIR = os.path.join(BASE_DIR, 'data')
+
+DATA_HOME = {
+    'mnist': os.path.join(DATA_DIR, 'datasets', 'mnist')
+}
+
+CHECKPOINT_DIR = os.path.join(DATA_DIR, 'checkpoint')

@@ -1,10 +1,12 @@
 import json
+import os
 
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
-from fedlearn import predict
-from pca import get_pca_result
+from FLHeteroBackend import settings
+from fedlearn import predict_mnist
+from pca import get_pca_result, load_samples
 from . import start_federated_learning, temporal_segment, get_segmented_history
 from utils import load_history
 
@@ -30,19 +32,28 @@ def initialize(request):
 @csrf_exempt
 def identify(request):
     if request.method == 'POST':
+        # print(request.body)
         request_data = json.loads(request.body)
         # print(request_data)
-        time = request_data['time']
+        cm_round = request_data['round']
         client_name = request_data['client']
-        step_size = request_data['step']
-        predict(client_name, time)
-        hetero_list, pca, labels_het, fed_result = get_pca_result(step_size, radius=10)
-        data = {
-            'heteroList': hetero_list,
-            'pca': pca,
-            'heteroLabels': labels_het,
-            'fedResult': fed_result,
-        }
+        predict_mnist(client_name, cm_round)
+        samples, local_data, ground_truth, outputs_client, outputs_server = load_samples(os.path.join(settings.DATA_DIR,
+                                                                                                      'samples.json'))
+        hetero_list, pca = get_pca_result(n_clusters=5,
+                                          data=samples,
+                                          ground_truth=ground_truth,
+                                          outputs_client=outputs_client,
+                                          outputs_server=outputs_server)
+        data = {'localData': local_data.tolist(),
+                'samples': samples.tolist(),
+                'groundTruth': ground_truth.tolist(),
+                'outputLabels': outputs_server.tolist(),
+                'heteroLabels': (outputs_client != outputs_server).tolist(),
+                'fedResult': (outputs_server == ground_truth).tolist(),
+                'pca': pca,
+                'heteroList': hetero_list,
+                }
         return JsonResponse(data)
 
 

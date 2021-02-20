@@ -6,14 +6,6 @@ from functools import reduce
 class CPCA(object):
     DEFAULT_ALPHAS = np.concatenate(([0], np.logspace(-1, 3, 99)))
 
-    def get_labels(self):
-        return self.labels
-
-    def set_labels(self, labels):
-        if np.shape(labels)[0] != self.fg_n:
-            raise ValueError('The number of data and labels must be the same')
-        self.labels = np.array(labels)
-
     def is_fitted(self):
         return self.fitted
 
@@ -26,30 +18,20 @@ class CPCA(object):
         self.bg_n, self.bg_d = None, None
         self.fg_cov = None
         self.bg_cov = None
-        self.labels = None  # {bg} = 1 {fg}/{bg} = 0
 
-    def fit_transform(self, dataset, labels, standardized=True,
-                      alpha=0):
-        self.fit(dataset, labels, standardized)
+    def fit_transform(self, target, background, standardized=False, alpha=0):
+        self.fit(target, background, standardized)
         return self.transform(alpha)
 
-    def fit(self, dataset, labels, standardized=True):
-        self.fg = np.array(dataset)
+    def fit(self, target, background, standardized=True):
+        self.fg = np.array(target)
         self.fg_n, self.fg_d = self.fg.shape
 
-        self.set_labels(labels)
-
-        self.bg = np.array(self.fg[self.labels == 1])
+        self.bg = np.array(background)
         self.bg_n, self.bg_d = self.bg.shape
-
         # center the data
         self.fg = self.fg - np.mean(self.fg, axis=0)
         self.bg = self.bg - np.mean(self.bg, axis=0)
-
-        # standardize
-        if standardized:
-            self.fg = np.nan_to_num(self.fg / np.std(self.fg, axis=0))
-            self.bg = np.nan_to_num(self.bg / np.std(self.bg, axis=0))
 
         # calculate the covariance matrices
         self.fg_cov = self.fg.T.dot(self.fg) / (self.fg_n - 1)
@@ -70,8 +52,6 @@ class CPCA(object):
             raise ValueError('This model has not been fit to a foreground/background dataset yet. Please run the fit('
                              ') or fit_transform() functions first.')
         sigma = self.fg_cov - alpha * self.bg_cov
-        # sigma = sigma.astype(np.float128)
-        # print('SUM: {}'.format(np.sum(sigma - sigma.T)))
         w, v = LA.eig(sigma)
         eig_idx = np.argpartition(w, -self.n_components)[-self.n_components:]
         eig_idx = eig_idx[np.argsort(-w[eig_idx])]

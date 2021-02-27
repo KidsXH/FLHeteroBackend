@@ -9,7 +9,6 @@ from fedlearn.models.mnist import MnistModel
 from fedlearn.datasets import get_region_data_loader
 from fedlearn.datasets.mnist import get_mnist_client_data
 from FLHeteroBackend import settings
-from utils import grid
 
 ckpt_path = os.path.join(settings.DATA_DIR, 'checkpoint')
 
@@ -25,7 +24,6 @@ def predict(client_name, time):
 
     test_loader = get_client_data_loader(client_name)
 
-    samples = []
     labels_real = []
     labels_het = []
     fed_result = []
@@ -44,20 +42,17 @@ def predict(client_name, time):
             total += labels.size(0)
             correct_s += (predicted_s == labels).sum().item()
             correct_c += (predicted_c == labels).sum().item()
-            samples.append(inputs.cpu().numpy())
             labels_real.append(labels.cpu().numpy())
             labels_het.append((predicted_s == predicted_c).cpu().numpy())
             fed_result.append((predicted_s == labels).cpu().numpy())
 
     # print('Acc_server: {} Acc_client: {}'.format(correct_s / total, correct_c / total))
-    samples = np.concatenate(samples)
     labels_real = np.concatenate(labels_real)
     labels_het = np.concatenate(labels_het)
     fed_result = np.concatenate(fed_result)
     # print('Good Samples {}, Bad Samples: {}'.format(good_samples.shape, bad_samples.shape))
 
     syn_data = {
-        'samples': samples.tolist(),
         'labels_real': labels_real.tolist(),
         'labels_het': labels_het.tolist(),
         'fed_result': fed_result.tolist(),
@@ -86,7 +81,6 @@ def predict_mnist(client_name, cm_round):
 
 
 def _predict(model_server, model_client, data_loader):
-    local_data = []
     ground_truth = []
     outputs_server = []
     outputs_client = []
@@ -105,26 +99,19 @@ def _predict(model_server, model_client, data_loader):
             total += labels.size(0)
             correct_s += (predicted_s == labels).sum().item()
             correct_c += (predicted_c == labels).sum().item()
-            local_data.append(inputs.cpu().numpy())
             ground_truth.append(labels.cpu().numpy())
             outputs_server.append(predicted_s.cpu().numpy())
             outputs_client.append(predicted_c.cpu().numpy())
     # print('Acc_server: {} Acc_client: {}'.format(correct_s / total, correct_c / total))
 
-    local_data = np.concatenate(local_data)
     ground_truth = np.concatenate(ground_truth)
     outputs_server = np.concatenate(outputs_server)
     outputs_client = np.concatenate(outputs_client)
 
-    samples = np.array([grid(d, n=10) for d in local_data])
-
-    syn_data = {
-        'samples': samples.tolist(),
-        'local_data': local_data.tolist(),
-        'ground_truth': ground_truth.tolist(),
-        'outputs_server': outputs_server.tolist(),
-        'outputs_client': outputs_client.tolist()
+    saving_data = {
+        'ground_truth': ground_truth,
+        'outputs_server': outputs_server,
+        'outputs_client': outputs_client,
     }
 
-    with open(os.path.join(settings.DATA_DIR, 'samples.json'), 'w') as f:
-        json.dump(syn_data, f)
+    np.savez_compressed(settings.SAMPLE_FILE, **saving_data)

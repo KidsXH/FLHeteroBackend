@@ -122,8 +122,19 @@ STATIC_URL = '/static/'
 
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 
+CACHE_DIR = os.path.join(DATA_DIR, 'cache')
+
 DATA_HOME = {
     'mnist': os.path.join(DATA_DIR, 'datasets', 'mnist')
 }
 
+HISTORY_DIR = {
+    'mnist': os.path.join(DATA_DIR, 'history', 'mnist')
+}
+
 CHECKPOINT_DIR = os.path.join(DATA_DIR, 'checkpoint')
+SAMPLE_FILE = os.path.join(DATA_DIR, 'samples.npz')
+TREE_FILE = os.path.join(DATA_DIR, 'tree.npz')
+WEIGHTS_DIR = os.path.join(DATA_DIR, 'weights')
+
+DEFAULT_ALPHA = 30

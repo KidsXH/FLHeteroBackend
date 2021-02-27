@@ -82,3 +82,34 @@ def temporal_segment(data, segment_number, max_length):
             low = mid
         else:
             high = mid
+
+
+processes = {
+    # 'sampling': sampling,
+    # 'federated_learning': federated_learning,
+    # 'local_learning': local_learning,
+    # 'clustering_history': clustering_history,
+}
+
+
+def preprocess(datasets, tasks=None):
+    pass
+
+
+class RunningState:
+    def __init__(self):
+        self.state = {}
+
+    def add_dict(self, states: dict):
+        for (key, value) in states.items():
+            self.state[key] = value
+
+    def add(self, key, value):
+        self.state[key] = value
+
+
+class Annotation:
+    def __init__(self, cm_round, text, data_id):
+        self.cm_round = cm_round
+        self.text = text
+        self.data_id = data_id

@@ -1,6 +1,5 @@
 import numpy as np
 from numpy import linalg as LA
-from functools import reduce
 
 
 class CPCA(object):
@@ -18,12 +17,14 @@ class CPCA(object):
         self.bg_n, self.bg_d = None, None
         self.fg_cov = None
         self.bg_cov = None
+        self.eig_values = None
+        self.components_ = None
 
-    def fit_transform(self, target, background, standardized=False, alpha=0):
-        self.fit(target, background, standardized)
+    def fit_transform(self, target, background, alpha=0):
+        self.fit(target, background)
         return self.transform(alpha)
 
-    def fit(self, target, background, standardized=True):
+    def fit(self, target, background):
         self.fg = np.array(target)
         self.fg_n, self.fg_d = self.fg.shape
 
@@ -57,4 +58,8 @@ class CPCA(object):
         eig_idx = eig_idx[np.argsort(-w[eig_idx])]
         v_top = v[:, eig_idx]
         projected_data = self.fg.dot(v_top)
+
+        self.components_ = v_top.T.real
+        self.eig_values = w[eig_idx].real
+
         return projected_data, v_top.T

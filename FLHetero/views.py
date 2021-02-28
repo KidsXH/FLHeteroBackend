@@ -76,8 +76,8 @@ def client(request):
         client_idx = np.where(rs.state['client_names'] == client_name)
 
         history = load_history(rs.state['dataset'])
-        loss = history['loss'][client_idx]
-        val_acc = history['val_acc'][client_idx]
+        loss = history['loss'][client_idx][0]
+        val_acc = history['val_acc'][client_idx][0]
 
         data = {
             'loss': loss.tolist(),

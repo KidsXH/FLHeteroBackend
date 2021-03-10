@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 
 from FLHeteroBackend import settings
 from pca.cpca import CPCA
-from pca.cluster import HeteroHierarchicalTree
+from pca.cluster import HeteroHierarchicalTree, build_tree
 
 
 def pca_show_figure(data, labels, title='PCA'):
@@ -27,49 +27,48 @@ def get_pcs(data):
     return pca.components_
 
 
-def get_cluster_list(n_clusters, data, ground_truth, outputs_client, outputs_server):
+def pca_weights(weights_0, weights_client, weights_server):
+    pca = PCA(n_components=2)
+    ws = pca.fit_transform(weights_server)
+    wc = pca.transform(weights_client)
+    w0 = pca.transform([weights_0])[0]
+    return w0, wc, ws
+
+
+def get_cluster_list(n_clusters, client_name, data, sampling_type, outputs_client, outputs_server):
     n = data.shape[0]
 
     # Hetero
     idx = outputs_client != outputs_server
-    hetero_samples = {'data': data[idx], 'labels': ground_truth[idx], 'index': np.arange(0, n, 1)[idx]}
+    hetero_samples = {'data': data[idx], 'index': np.arange(0, n, 1)[idx]}
     # Homo
     idx = outputs_client == outputs_server
-    homo_samples = {'data': data[idx], 'labels': ground_truth[idx], 'index': np.arange(0, n, 1)[idx]}
-
+    homo_samples = {'data': data[idx], 'index': np.arange(0, n, 1)[idx]}
+    # build_tree(data)
     tree = HeteroHierarchicalTree()
-    tree.fit(outputs_client != outputs_server)
-    cluster_rank, hetero_rates = tree.rank(hetero_samples['data'], n_clusters)
+    tree.fit(client_name=client_name, sampling_type=sampling_type, hetero_labels=outputs_client != outputs_server)
+
+    if n_clusters is None:
+        _, _ = tree.rank(n_clusters=2)
+        distance_rev = tree.distances[:][::-1]
+        acceleration_rev = np.diff(distance_rev, 2)
+        n_clusters = acceleration_rev.argmax() + 2
+
+    cluster_rank, hetero_rates = tree.rank(n_clusters)
     cluster_labels = tree.labels  # type: np.ndarray
+
     hetero_list = []
 
     for i, ci in enumerate(cluster_rank):
         idx = cluster_labels == ci
         hetero_size = idx.sum()
         data_idx = hetero_samples['index'][idx]
-        # bg = hetero_samples['data'][idx]
-        # fg = np.concatenate((homo_samples['data'], bg))
-
-        # transformed_data, cpcs = mdl.fit_transform(fg, bg, alpha=settings.DEFAULT_ALPHA)
-        # transformed_data = transformed_data.real
-        # cpcs = cpcs.real
 
         het = {
-            # 'cpca': {
-            #     'cpc1': cpcs[0].tolist(),
-            #     'cpc2': cpcs[1].tolist(),
-            # },
             'heteroSize': int(hetero_size),
             'heteroIndex': data_idx.tolist(),
             'heteroRate': hetero_rates[ci],
         }
         hetero_list.append(het)
-
-        # if i < show_cpca_figures:
-        #     m = homo_samples['data'].shape[0]
-        #     plt.title('Cluster{}, Alpha={}, Het_rate={:.2f}%'.format(ci, settings.DEFAULT_ALPHA, hetero_rates[ci] * 100))
-        #     plt.scatter(*transformed_data[:m].T, c='black', alpha=0.3)
-        #     plt.scatter(*transformed_data[m:].T, c='red', alpha=0.3)
-        #     plt.show()
 
     return hetero_list

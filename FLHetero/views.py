@@ -6,10 +6,9 @@ from django.views.decorators.csrf import csrf_exempt
 import numpy as np
 
 from FLHeteroBackend import settings
-from pca import get_pcs, get_cluster_list, CPCA
-from pca.cluster import clustering_history
+from pca import get_cluster_list, CPCA, pca_weights
 from . import RunningState
-from utils import load_history, load_samples, load_outputs, load_weights
+from utils import load_history, load_samples, load_outputs, load_weights, sample_weight
 
 rs = RunningState()
 
@@ -29,7 +28,7 @@ def customize(request):
 @csrf_exempt
 def datasets(request):
     if request.method == 'GET':
-        data = {'datasetNames': 'mnist'}
+        data = {'datasetNames': 'mnist_mlp'}
         return JsonResponse(data)
     if request.method == 'POST':
         request_data = json.loads(request.body)
@@ -45,12 +44,12 @@ def datasets(request):
         rs.add('n_clients', n_clients)
         rs.add('n_rounds', n_rounds)
 
-        data = {'labels': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        data = {'labels': 'The value of the handwritten digit.',
                 'dimensions': 784,
                 'numberOfClients': n_clients,
                 'clientNames': client_names.tolist(),
-                'trainingDataSize': 4000,
-                'testDataSize': 2000,
+                'trainingDataSize': 5400,
+                'testDataSize': 600,
                 'communicationRounds': n_rounds,
                 }
 
@@ -90,19 +89,20 @@ def client(request):
 @csrf_exempt
 def weights(request):
     if request.method == 'GET':
-        weight = load_weights(dataset_name=rs.state['dataset'], client_name=rs.state['client'],
-                              n_rounds=rs.state['n_rounds'])
-        weight_0 = weight['weights_0']
-        weights_server = weight['weights_server']
-        weights_client = weight['weights_client']
-        weight_0, weights_server, weights_client, idx = clustering_history(weight_0=weight_0,
-                                                                           weights_server=weights_server,
-                                                                           weights_client=weights_client)
-        data = {'weight0': weight_0.tolist(),
+        weights_0, weights_client, weights_server, cosines = load_weights(dataset_name=rs.state['dataset'],
+                                                                          client_name=rs.state['client'],
+                                                                          n_rounds=rs.state['n_rounds'])
+        # print(weights_0, weights_client, weights_server, cosines)
+
+        weights_0, weights_client, weights_server = sample_weight(weights_0, weights_client, weights_server, num=1000)
+        weights_0, weights_client, weights_server = pca_weights(weights_0, weights_client, weights_server)
+
+        data = {'weight0': weights_0.tolist(),
                 'serverWeights': weights_server.tolist(),
                 'clientWeights': weights_client.tolist(),
-                'splitPoints': idx.tolist(),
+                'cosines': cosines.tolist(),
                 }
+
         return JsonResponse(data)
 
 
@@ -117,18 +117,13 @@ def sampling(request):
                                              sampling_type=sampling_type)
 
         rs.add('data', samples)
+        rs.add('sampling_type', sampling_type)
         rs.add('ground_truth', ground_truth)
 
-        data = {'data': samples.tolist()}
-        return JsonResponse(data)
-
-
-# path('pca/', views.pca),
-@csrf_exempt
-def pca(request):
-    if request.method == 'GET':
-        pc1, pc2 = get_pcs(rs.state['data'])
-        data = {'pc1': pc1.tolist(), 'pc2': pc2.tolist()}
+        # samples = np.round(samples.astype(float), 5)
+        data = {'data': samples.tolist(),
+                'attr_range': [0, 255],
+                }
         return JsonResponse(data)
 
 
@@ -139,18 +134,43 @@ def labels(request):
         request_data = json.loads(request.body)
         cm_round = request_data['round']
 
-        output_labels = load_outputs(datasets=rs.state['dataset'], client_name=rs.state['client'], cm_round=cm_round)
+        output_labels = load_outputs(datasets=rs.state['dataset'], client_name=rs.state['client'], cm_round=cm_round,
+                                     sampling_type=rs.state['sampling_type'])
         rs.add_dict(output_labels)
         rs.add('cm_round', cm_round)
 
-        outputs_server = rs.state['outputs_server']
-        outputs_client = rs.state['outputs_client']
+        outputs_server = rs.state['outputs_server']  # type: np.ndarray
+        outputs_client = rs.state['outputs_client']  # type: np.ndarray
         ground_truth = rs.state['ground_truth']
 
         data = {'consistencyLabel': (outputs_client == outputs_server).tolist(),
                 'groundTruthLabel': ground_truth.tolist(),
                 'outputLabel': outputs_server.tolist(),
+                'localOutputLabel': outputs_client.tolist(),
                 }
+        return JsonResponse(data)
+
+
+# path('cpca/all', views.cpca_all),
+@csrf_exempt
+def cpca_all(request):
+    if request.method == 'POST':
+        request_data = json.loads(request.body)
+        alpha = None
+        if 'alpha' in request_data.keys():
+            alpha = request_data['alpha']
+
+        cPCA = CPCA(n_components=2)
+        data = rs.state['data']
+        hetero_labels = rs.state['outputs_server'] != rs.state['outputs_client']
+        cPCA.fit_transform(target=data, background=data[hetero_labels], alpha=alpha)
+
+        data = {'alpha': cPCA.alpha,
+                'cpc1': cPCA.components_[0].tolist(),
+                'cpc2': cPCA.components_[1].tolist()}
+
+        rs.add('cpca_all_result', data)
+
         return JsonResponse(data)
 
 
@@ -159,37 +179,52 @@ def labels(request):
 def cluster(request):
     if request.method == 'POST':
         request_data = json.loads(request.body)
-        n_clusters = 20
+        n_clusters = None
         if 'nrOfClusters' in request_data.keys():
             n_clusters = request_data['nrOfClusters']
-        cluster_list = get_cluster_list(n_clusters=n_clusters, data=rs.state['data'],
-                                        ground_truth=rs.state['ground_truth'],
+
+        cluster_list = get_cluster_list(n_clusters=n_clusters, client_name=rs.state['client'],
+                                        data=rs.state['data'], sampling_type=rs.state['sampling_type'],
                                         outputs_server=rs.state['outputs_server'],
                                         outputs_client=rs.state['outputs_client'])
+
         rs.add('clusters', cluster_list)
-        data = {'nrOfClusters': n_clusters,
+
+        data = {'nrOfClusters': len(cluster_list),
                 'clusterList': cluster_list}
         return JsonResponse(data)
 
 
-# path('cpca/', views.cpca),
+# path('cpca/cluster', views.cpca_cluster),
 @csrf_exempt
-def cpca(request):
+def cpca_cluster(request):
     if request.method == 'POST':
         request_data = json.loads(request.body)
-        alpha = settings.DEFAULT_ALPHA
+        # print(request_data)
+        alpha = None
         if 'alpha' in request_data.keys():
             alpha = request_data['alpha']
+
         cluster_id = request_data['clusterID']
+
         data = rs.state['data']
         hetero_idx = rs.state['clusters'][cluster_id]['heteroIndex']
         homo_idx = rs.state['outputs_server'] == rs.state['outputs_client']
+
         bg = data[hetero_idx]
+
+        if bg.shape[0] == 1:
+            return JsonResponse(rs.state['cpca_all_result'])
+
         fg = np.concatenate((data[homo_idx], bg))
+
+        # print('fg: {}, bg: {}, alpha: {}'.format(fg.shape, bg.shape, alpha))
+
         cPCA = CPCA(n_components=2)
         cPCA.fit_transform(target=fg, background=bg, alpha=alpha)
 
-        data = {'cpc1': cPCA.components_[0].tolist(),
+        data = {'alpha': cPCA.alpha,
+                'cpc1': cPCA.components_[0].tolist(),
                 'cpc2': cPCA.components_[1].tolist()}
 
         return JsonResponse(data)
@@ -200,12 +235,11 @@ def cpca(request):
 def annotation(request):
     if request.method == 'POST':
         request_data = json.loads(request.body)
-        cluster_id = request_data['clusterID']
+        data_index = request_data['dataIndex']
         text = request_data['text']
-        data_id = rs.state['clusters'][cluster_id]['heteroIndex']
         rs.state['annotations'].append({'round': rs.state['cm_round'],
                                         'text': text,
-                                        'dataIndex': data_id})
+                                        'dataIndex': data_index})
         return HttpResponse()
 
 

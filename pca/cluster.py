@@ -17,6 +17,7 @@ class HeteroHierarchicalTree:
     """
     def __init__(self):
         self.children = None
+        self.affinity = None
         self.hetero_labels = None
         self.n_leaves = None
         self.het_count = None
@@ -24,10 +25,12 @@ class HeteroHierarchicalTree:
         self.father = None
         self.depth = None
         self.labels = None
+        self.distances = None
         self.fitted = False
 
-    def fit(self, hetero_labels):
-        self.children = children = load_children()
+    def fit(self, client_name, sampling_type, hetero_labels):
+        self.children = children = load_children(client_name, sampling_type)
+        self.affinity = load_affinity(client_name, sampling_type)
         self.hetero_labels = hetero_labels
         self.n_leaves = n_leaves = children.shape[0] + 1
 
@@ -54,43 +57,22 @@ class HeteroHierarchicalTree:
 
         self.fitted = True
 
-    # def split(self, min_het_rate):
-    #     n_leaves, het_count, all_count, children = self.n_leaves, self.het_count, self.all_count, self.children
-    #     queue = Queue()
-    #     queue.put(n_leaves * 2 - 2)
-    #     cluster_roots = []
-    #
-    #     while not queue.empty():
-    #         cur_node = queue.get()
-    #         het_rate = het_count[cur_node] / all_count[cur_node]
-    #         if het_rate >= min_het_rate:
-    #             cluster_roots.append(cur_node)
-    #             continue
-    #         if het_count[cur_node] > 0:
-    #             queue.put(children[cur_node - n_leaves][0])
-    #             queue.put(children[cur_node - n_leaves][1])
-    #
-    #     cls_labels = np.zeros(n_leaves, dtype=int)
-    #     label_count = 1
-    #     for root in cluster_roots:
-    #         if all_count[root] < 5:
-    #             continue
-    #         lv_idx = _find_leaves_in_subtree(children, n_leaves, root)
-    #         cls_labels[lv_idx] = label_count
-    #         label_count += 1
-    #     return cls_labels
-
-    def rank(self, hetero_data, n_clusters):
+    def rank(self, n_clusters):
         if not self.fitted:
             raise ValueError('Not fitted yet.')
         hetero_labels, n_leaves, children, father, depth = self.hetero_labels, self.n_leaves, self.children, self.father, self.depth
         idx_het = np.arange(0, n_leaves, 1, dtype=int)[hetero_labels]
-        ac = AgglomerativeClustering(n_clusters=n_clusters)
-        cls_labels_het = ac.fit_predict(hetero_data)
+
+        affinity = self.affinity[hetero_labels][:, hetero_labels]
+        cls = AgglomerativeClustering(n_clusters=n_clusters, affinity='precomputed', linkage='single',
+                                      compute_distances=True)
+        cls_labels_het = cls.fit_predict(affinity)
         self.labels = cls_labels_het
+        self.distances = cls.distances_
 
         roots = []
         hetero_rates = []
+        hetero_size = []
         for ci in range(n_clusters):
             # LCA (can be optimized)
             nodes = idx_het[cls_labels_het == ci]
@@ -109,8 +91,9 @@ class HeteroHierarchicalTree:
             #                                                                         self.het_count[root],
             #                                                                         self.all_count[root],))
             roots.append(root)
-            hetero_rates.append(self.get_het_rate(root))
-        rank = np.argsort(roots)
+            hetero_rates.append(n_nodes / self.all_count[root])
+            hetero_size.append(n_nodes)
+        rank = np.argsort(hetero_size)[::-1]
         hetero_rates = np.array(hetero_rates).astype(float)
         return rank, hetero_rates
 
@@ -146,14 +129,57 @@ def _get_depth(children, n_leaves):
     return depth
 
 
-def build_tree(data):
-    children, n_components, n_leaves, parent = ward_tree(data)
-    np.savez_compressed(settings.TREE_FILE, children=children)
+def build_tree(samples_data, sampling_types):
+    trees = {}
+    client_names = samples_data['client_names']
+    for client_idx, client_name in enumerate(client_names):
+        print('Building Tree: {}'.format(client_name))
+        trees[client_name] = {}
+        for sampling_type in sampling_types:
+            print('  Data Shape: {}', samples_data[sampling_type][client_idx].shape)
+            children, n_components, n_leaves, parent = ward_tree(samples_data[sampling_type][client_idx])
+            trees[client_name][sampling_type] = children
+    np.savez_compressed(settings.TREE_FILE, **trees)
 
 
-def load_children():
-    data = np.load(settings.TREE_FILE)
-    return data['children']
+def load_children(client_name, sampling_type):
+    data = np.load(settings.TREE_FILE, allow_pickle=True)
+    return data[client_name].item()[sampling_type]
+
+
+def create_affinity(samples_data, sampling_types):
+    affinity = {}
+    client_names = samples_data['client_names'][:2]
+    for client_idx, client_name in enumerate(client_names):
+        print('Creating Affinity: {}'.format(client_name))
+        affinity[client_name] = {}
+        for sampling_type in sampling_types:
+            print('  Data Shape: {}', samples_data[sampling_type][client_idx].shape)
+            affinity[client_name][sampling_type] = calculate_affinity(samples_data[sampling_type][client_idx])
+    np.savez_compressed(settings.AFFINITY_file, **affinity)
+
+
+def calculate_affinity(data):
+    n, d = data.shape
+    affinity = np.zeros((n, n), np.float32)
+    distances = np.zeros((n, n), np.float32)
+    rank = np.zeros((n, n), np.float32)
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            distances[i][j] = distances[j][i] = np.linalg.norm(data[i] - data[j])
+        rank[i] = np.argsort(np.argsort(distances[i]))
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            affinity[i][j] = affinity[j][i] = rank[i][j] * rank[j][i]
+
+    return affinity
+
+
+def load_affinity(client_name, sampling_type):
+    data = np.load(settings.AFFINITY_file, allow_pickle=True)
+    return data[client_name].item()[sampling_type]
 
 
 def clustering_history(weight_0, weights_server, weights_client, n_clusters=20):
@@ -164,10 +190,6 @@ def clustering_history(weight_0, weights_server, weights_client, n_clusters=20):
     segmentations = temp_segment(transformed_weight_s, n_clusters)
 
     end_points = np.array([s[0] for s in segmentations] + [segmentations[-1][-1]])
-    # clustered_weights_s = transformed_weight_s[end_points]
-    # clustered_weights_c = transformed_weight_c[end_points]
-
-    # return transformed_weight_0, clustered_weights_s, clustered_weights_c, end_points
     return transformed_weight_0, transformed_weight_s, transformed_weight_c, end_points
 
 

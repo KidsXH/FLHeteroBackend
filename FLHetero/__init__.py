@@ -106,10 +106,3 @@ class RunningState:
 
     def add(self, key, value):
         self.state[key] = value
-
-
-class Annotation:
-    def __init__(self, cm_round, text, data_id):
-        self.cm_round = cm_round
-        self.text = text
-        self.data_id = data_id

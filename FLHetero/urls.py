@@ -8,10 +8,10 @@ urlpatterns = [
     path('client/', views.client),
     path('weights/', views.weights),
     path('sampling/', views.sampling),
-    path('pca/', views.pca),
     path('labels/', views.labels),
+    path('cpca/all/', views.cpca_all),
     path('cluster/', views.cluster),
-    path('cpca/', views.cpca),
+    path('cpca/cluster/', views.cpca_cluster),
     path('annotation/', views.annotation),
     path('annotationList/', views.annotation_list),
 ]

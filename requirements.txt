@@ -5,7 +5,6 @@ Django @ file:///tmp/build/80754af9/django_1609784082548/work
 joblib @ file:///tmp/build/80754af9/joblib_1607970656719/work
 kiwisolver @ file:///C:/ci/kiwisolver_1604014703538/work
 matplotlib @ file:///C:/ci/matplotlib-base_1603355780617/work
-mkl-fft==1.2.0
 mkl-random==1.1.1
 mkl-service==2.3.0
 numpy @ file:///C:/ci/numpy_and_numpy_base_1603466732592/work
@@ -23,14 +22,11 @@ sip==4.19.13
 six @ file:///C:/ci/six_1605187374963/work
 sqlparse @ file:///tmp/build/80754af9/sqlparse_1602184451250/work
 threadpoolctl @ file:///tmp/tmp9twdgx9k/threadpoolctl-2.1.0-py3-none-any.whl
-torch==1.7.1
-torchaudio==0.7.2
-torchvision==0.8.2
 tornado @ file:///C:/ci/tornado_1606942392901/work
 typing-extensions @ file:///tmp/build/80754af9/typing_extensions_1598376058250/work
 wincertstore==0.2
 numpy~=1.19.2
-scikit-learn~=0.23.2
 matplotlib~=3.3.2
 tqdm~=4.56.0
 django~=3.1.5
+scikit-learn~=0.24.1

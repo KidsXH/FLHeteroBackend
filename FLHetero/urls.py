@@ -8,7 +8,6 @@ urlpatterns = [
     path('client/', views.client),
     path('weights/', views.weights),
     path('sampling/', views.sampling),
-    path('labels/', views.labels),
     path('cpca/all/', views.cpca_all),
     path('cluster/', views.cluster),
     path('cpca/cluster/', views.cpca_cluster),

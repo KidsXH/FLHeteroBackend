@@ -7,7 +7,7 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 migrations/
-tests.py*
+tests.py
 
 # Jupyter Notebook
 .ipynb_checkpoints

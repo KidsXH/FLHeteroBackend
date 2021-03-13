@@ -6,7 +6,7 @@ __pycache__/
 local_settings.py
 db.sqlite3
 migrations/
-tests.py
+manage.py
 
 # Jupyter Notebook
 .ipynb_checkpoints

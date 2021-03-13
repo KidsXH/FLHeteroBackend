@@ -104,5 +104,5 @@ class RunningState:
         for (key, value) in states.items():
             self.state[key] = value
 
-    def add(self, key, value):
+    def set(self, key, value):
         self.state[key] = value

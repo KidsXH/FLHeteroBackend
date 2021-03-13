@@ -9,7 +9,7 @@ from sklearn.decomposition import PCA
 
 from FLHeteroBackend import settings
 from pca import CPCA, build_tree
-from pca.cluster import create_affinity
+from pca.cluster import create_affinity, load_affinity
 from utils import load_outputs
 
 data_file = os.path.join(settings.DATA_DIR, 'samples.npz')
@@ -47,14 +47,14 @@ def test_cpca():
 
 
 def test_clustering(dataset, n_clusters, show_cluster, sample_type, client_name, cm_round):
-    f_data = np.load(os.path.join(settings.DATA_HOME[dataset], 'samples.npz'))
-    client_idx = int(client_name[-1])
+    f_data = np.load(os.path.join(settings.DATA_HOME[dataset], 'samples.npz'), allow_pickle=True)
+    client_idx = np.where(client_name == f_data['client_names'])[0][0]
     data = f_data[sample_type][client_idx]
     gt = f_data['ground_truth'][client_idx]
     n = data.shape[0]
     labels = np.zeros(n, dtype=int)
     labels_d = np.zeros(n, dtype=int)
-    affinity = np.load(settings.AFFINITY_file, allow_pickle=True)[client_name].item()[sample_type]
+    affinity = load_affinity(dataset=dataset, client_name=client_name, sampling_type=sample_type)
 
     output = load_outputs(datasets=dataset, client_name=client_name, cm_round=cm_round, sampling_type=sample_type)
     hetero_labels = output['outputs_server'] != output['outputs_client']
@@ -205,8 +205,8 @@ def calculate_affinity(data):
 if __name__ == '__main__':
     last_time = time()
 
-    test_clustering(dataset='mnist_mlp', n_clusters=10, show_cluster=1, sample_type='stratified',
-                    client_name='Client-0', cm_round=19)
+    test_clustering(dataset='face', n_clusters=10, show_cluster=1, sample_type='stratified',
+                    client_name='Client-0', cm_round=49)
 
     # data = np.load(settings.DATA_HOME['mnist'])
 

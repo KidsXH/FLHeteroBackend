@@ -3,7 +3,6 @@ from time import time
 
 import numpy as np
 from FLHetero import temporal_segment, get_segmented_history
-from fedlearn import predict_mnist
 from pca import get_cluster_list, CPCA
 from pca.cluster import clustering_history
 from utils import load_history, load_samples, load_weights, load_outputs
@@ -28,10 +27,10 @@ def test_initialize():
         json.dump(data, f)
 
 
-def test_val():
+def test_val(dataset):
     # val_file = os.path.join(settings.HISTORY_DIR['mnist'], 'validation.npz')
-    val_file = os.path.join(settings.HISTORY_DIR['mnist_mlp'], 'validation.npz')
-    data = np.load(val_file)
+    val_file = os.path.join(settings.HISTORY_DIR[dataset], 'validation.npz')
+    data = np.load(val_file, allow_pickle=True)
 
     client_names = data['client_names']
     loss = data['loss']
@@ -45,7 +44,6 @@ def test_val():
     plt.title('Validate Accuracy')
     for i in range(n_clients):
         plt.plot(x, val_acc[i], label=i)
-        print('Client', i, val_acc[i][-1])
     plt.legend()
 
     plt.subplot(122)
@@ -55,21 +53,12 @@ def test_val():
     plt.legend()
     plt.show()
 
-    return
-
-    cos_file = os.path.join(settings.HISTORY_DIR['mnist'], 'weights', 'cosines.npz')
+    cos_file = os.path.join(settings.HISTORY_DIR[dataset], 'weights', 'cosines.npz')
     cosines = np.load(cos_file)
 
     for idx, c_name in enumerate(cosines):
         plt.plot(x, cosines[c_name], label=idx)
     plt.legend()
-    plt.show()
-
-    y = np.zeros(200, dtype=np.float32)
-    y[0] = 1
-    for i in range(1, 200):
-        y[i] = y[i - 1] * 0.995
-    plt.plot(x, y)
     plt.show()
 
     # for i in range(n_clients):
@@ -149,6 +138,13 @@ def test_client(dataset, client_idx):
     print(json_data)
 
 
+def test_output(dataset, client_name, cm_round, sampling_type):
+    output = load_outputs(datasets=dataset, client_name=client_name, cm_round=cm_round, sampling_type=sampling_type)
+    het = output['outputs_server'] != output['outputs_client']
+    print(het)
+    print(het.sum())
+
+
 if __name__ == '__main__':
     # test_identify(client_name='Client-0', cm_round=19, n_cluster=20, sampling_type='systematic')
     # check_identify_data()
@@ -156,4 +152,5 @@ if __name__ == '__main__':
     # test_cpca(dataset_name='mnist', client_name='Client-0', cm_round=199, cluster_id=0)
     # test_client('mnist', 0)
     # test_auto_clustering(dataset_name='mnist', client_name='Client-3', cm_round=199, )
-    test_val()
+    test_val('face')
+    # test_output(dataset='mnist_mlp', client_name='Client-2', cm_round=29, sampling_type='stratified')

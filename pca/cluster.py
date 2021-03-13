@@ -1,3 +1,4 @@
+import os
 from queue import Queue
 
 import numpy as np
@@ -28,9 +29,9 @@ class HeteroHierarchicalTree:
         self.distances = None
         self.fitted = False
 
-    def fit(self, client_name, sampling_type, hetero_labels):
-        self.children = children = load_children(client_name, sampling_type)
-        self.affinity = load_affinity(client_name, sampling_type)
+    def fit(self, dataset, client_name, sampling_type, hetero_labels):
+        self.children = children = load_children(dataset, client_name, sampling_type)
+        self.affinity = load_affinity(dataset, client_name, sampling_type)
         self.hetero_labels = hetero_labels
         self.n_leaves = n_leaves = children.shape[0] + 1
 
@@ -129,34 +130,43 @@ def _get_depth(children, n_leaves):
     return depth
 
 
-def build_tree(samples_data, sampling_types):
-    trees = {}
+def build_tree(dataset, client_list, sampling_types):
+    samples_data = np.load(os.path.join(settings.DATA_HOME[dataset], 'samples.npz'), allow_pickle=True)
     client_names = samples_data['client_names']
+    trees = {}
     for client_idx, client_name in enumerate(client_names):
+        if client_name not in client_list:
+            continue
         print('Building Tree: {}'.format(client_name))
         trees[client_name] = {}
         for sampling_type in sampling_types:
-            print('  Data Shape: {}', samples_data[sampling_type][client_idx].shape)
+            print('   Data Shape:', samples_data[sampling_type][client_idx].shape)
             children, n_components, n_leaves, parent = ward_tree(samples_data[sampling_type][client_idx])
             trees[client_name][sampling_type] = children
-    np.savez_compressed(settings.TREE_FILE, **trees)
+    tree_file = os.path.join(settings.CACHE_DIR, 'tree_{}'.format(dataset))
+    np.savez_compressed(tree_file, **trees)
 
 
-def load_children(client_name, sampling_type):
-    data = np.load(settings.TREE_FILE, allow_pickle=True)
+def load_children(dataset, client_name, sampling_type):
+    tree_file = os.path.join(settings.CACHE_DIR, 'tree_{}.npz'.format(dataset))
+    data = np.load(tree_file, allow_pickle=True)
     return data[client_name].item()[sampling_type]
 
 
-def create_affinity(samples_data, sampling_types):
-    affinity = {}
+def create_affinity(dataset, client_list, sampling_types):
+    samples_data = np.load(os.path.join(settings.DATA_HOME[dataset], 'samples.npz'), allow_pickle=True)
     client_names = samples_data['client_names'][:2]
+    affinity = {}
     for client_idx, client_name in enumerate(client_names):
+        if client_name not in client_list:
+            continue
         print('Creating Affinity: {}'.format(client_name))
         affinity[client_name] = {}
         for sampling_type in sampling_types:
-            print('  Data Shape: {}', samples_data[sampling_type][client_idx].shape)
+            print('  Data Shape:', samples_data[sampling_type][client_idx].shape)
             affinity[client_name][sampling_type] = calculate_affinity(samples_data[sampling_type][client_idx])
-    np.savez_compressed(settings.AFFINITY_file, **affinity)
+    affinity_file = os.path.join(settings.CACHE_DIR, 'affinity_{}'.format(dataset))
+    np.savez_compressed(affinity_file, **affinity)
 
 
 def calculate_affinity(data):
@@ -177,55 +187,7 @@ def calculate_affinity(data):
     return affinity
 
 
-def load_affinity(client_name, sampling_type):
-    data = np.load(settings.AFFINITY_file, allow_pickle=True)
+def load_affinity(dataset, client_name, sampling_type):
+    affinity_file = os.path.join(settings.CACHE_DIR, 'affinity_{}.npz'.format(dataset))
+    data = np.load(affinity_file, allow_pickle=True)
     return data[client_name].item()[sampling_type]
-
-
-def clustering_history(weight_0, weights_server, weights_client, n_clusters=20):
-    pca = PCA(n_components=2)
-    transformed_weight_s = pca.fit_transform(weights_server)
-    transformed_weight_c = pca.transform(weights_client)
-    transformed_weight_0 = pca.transform([weight_0])[0]
-    segmentations = temp_segment(transformed_weight_s, n_clusters)
-
-    end_points = np.array([s[0] for s in segmentations] + [segmentations[-1][-1]])
-    return transformed_weight_0, transformed_weight_s, transformed_weight_c, end_points
-
-
-def temp_segment(data, n_segments=20):
-    T, n = data.shape
-
-    if T < n_segments:
-        return data
-
-    n = data.shape[0]
-    f = np.zeros(n, dtype=float)
-    for i in range(1, n):
-        f[i] = np.linalg.norm(data[i] - data[i - 1])
-
-    low, high = 0, f.sum()
-    step = 0
-    while low < high:
-        step += 1
-        mid = (low + high) / 2
-        result = [[0]]
-        sum_length = 0
-        for i in range(1, T):
-            d = np.linalg.norm(data[i] - data[i - 1])
-            if mid >= sum_length + d:
-                result[-1].append(i)
-                sum_length += d
-            else:
-                result.append([i])
-                sum_length = d
-
-        len_r = len(result)
-
-        if len_r == n_segments or step == 100:
-            # print(mid)
-            return result
-        elif len_r > n_segments:
-            low = mid
-        else:
-            high = mid

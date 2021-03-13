@@ -35,7 +35,7 @@ def pca_weights(weights_0, weights_client, weights_server):
     return w0, wc, ws
 
 
-def get_cluster_list(n_clusters, client_name, data, sampling_type, outputs_client, outputs_server):
+def get_cluster_list(n_clusters, dataset, client_name, data, sampling_type, outputs_client, outputs_server):
     n = data.shape[0]
 
     # Hetero
@@ -46,7 +46,8 @@ def get_cluster_list(n_clusters, client_name, data, sampling_type, outputs_clien
     homo_samples = {'data': data[idx], 'index': np.arange(0, n, 1)[idx]}
     # build_tree(data)
     tree = HeteroHierarchicalTree()
-    tree.fit(client_name=client_name, sampling_type=sampling_type, hetero_labels=outputs_client != outputs_server)
+    tree.fit(dataset=dataset, client_name=client_name, sampling_type=sampling_type,
+             hetero_labels=outputs_client != outputs_server)
 
     if n_clusters is None:
         _, _ = tree.rank(n_clusters=2)

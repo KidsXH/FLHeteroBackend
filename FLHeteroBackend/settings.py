@@ -123,15 +123,13 @@ STATIC_URL = '/static/'
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 
 CACHE_DIR = os.path.join(DATA_DIR, 'cache')
-TREE_FILE = os.path.join(CACHE_DIR, 'tree.npz')
-AFFINITY_file = os.path.join(CACHE_DIR, 'affinity.npz')
 
 DATA_HOME = {
     'mnist': os.path.join(DATA_DIR, 'datasets', 'mnist'),
-    'mnist_mlp': os.path.join(DATA_DIR, 'datasets', 'mnist'),
+    'face': os.path.join(DATA_DIR, 'datasets', 'face'),
 }
 
 HISTORY_DIR = {
     'mnist': os.path.join(DATA_DIR, 'history', 'mnist'),
-    'mnist_mlp': os.path.join(DATA_DIR, 'history', 'mnist_mlp'),
+    'face': os.path.join(DATA_DIR, 'history', 'face'),
 }

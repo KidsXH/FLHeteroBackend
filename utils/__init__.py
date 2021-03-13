@@ -18,7 +18,7 @@ def load_samples0(filename):
 
 def load_samples(datasets, client_name, sampling_type):
     samples_file = os.path.join(settings.DATA_HOME[datasets], 'samples.npz')
-    samples_data = np.load(samples_file)
+    samples_data = np.load(samples_file, allow_pickle=True)
     client_names = samples_data['client_names']
     client_idx = np.where(client_names == client_name)[0][0]
     samples = {
@@ -108,7 +108,7 @@ def cos_v(v1: np.ndarray, v2: np.ndarray):
 
 def sample_weight(weights_0, weights_client, weights_server, num):
     n = weights_0.shape[0]
-    if n < num:
+    if n <= num:
         return weights_0, weights_client, weights_server
     np.random.seed(0)
     idx = np.random.permutation(n)[:num]

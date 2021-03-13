@@ -28,7 +28,7 @@ def customize(request):
 @csrf_exempt
 def datasets(request):
     if request.method == 'GET':
-        data = {'datasetNames': 'mnist_mlp'}
+        data = {'datasetNames': list(settings.DATA_HOME.keys())}
         return JsonResponse(data)
     if request.method == 'POST':
         request_data = json.loads(request.body)
@@ -39,10 +39,10 @@ def datasets(request):
         n_clients = client_names.shape[0]
         n_rounds = history['loss'].shape[1]
 
-        rs.add('dataset', dataset_name)
-        rs.add('client_names', client_names)
-        rs.add('n_clients', n_clients)
-        rs.add('n_rounds', n_rounds)
+        rs.set('dataset', dataset_name)
+        rs.set('client_names', client_names)
+        rs.set('n_clients', n_clients)
+        rs.set('n_rounds', n_rounds)
 
         data = {'labels': 'The value of the handwritten digit.',
                 'dimensions': 784,
@@ -69,8 +69,8 @@ def client(request):
         if client_name not in rs.state['client_names']:
             return HttpResponseBadRequest
 
-        rs.add('client', client_name)
-        rs.add('annotations', [])
+        rs.set('client', client_name)
+        rs.set('annotations', [])
 
         client_idx = np.where(rs.state['client_names'] == client_name)
 
@@ -116,9 +116,9 @@ def sampling(request):
         samples, ground_truth = load_samples(datasets=rs.state['dataset'], client_name=rs.state['client'],
                                              sampling_type=sampling_type)
 
-        rs.add('data', samples)
-        rs.add('sampling_type', sampling_type)
-        rs.add('ground_truth', ground_truth)
+        rs.set('data', samples)
+        rs.set('sampling_type', sampling_type)
+        rs.set('ground_truth', ground_truth)
 
         # samples = np.round(samples.astype(float), 5)
         data = {'data': samples.tolist(),
@@ -137,7 +137,7 @@ def labels(request):
         output_labels = load_outputs(datasets=rs.state['dataset'], client_name=rs.state['client'], cm_round=cm_round,
                                      sampling_type=rs.state['sampling_type'])
         rs.add_dict(output_labels)
-        rs.add('cm_round', cm_round)
+        rs.set('cm_round', cm_round)
 
         outputs_server = rs.state['outputs_server']  # type: np.ndarray
         outputs_client = rs.state['outputs_client']  # type: np.ndarray
@@ -169,7 +169,7 @@ def cpca_all(request):
                 'cpc1': cPCA.components_[0].tolist(),
                 'cpc2': cPCA.components_[1].tolist()}
 
-        rs.add('cpca_all_result', data)
+        rs.set('cpca_all_result', data)
 
         return JsonResponse(data)
 
@@ -183,12 +183,13 @@ def cluster(request):
         if 'nrOfClusters' in request_data.keys():
             n_clusters = request_data['nrOfClusters']
 
-        cluster_list = get_cluster_list(n_clusters=n_clusters, client_name=rs.state['client'],
+        cluster_list = get_cluster_list(n_clusters=n_clusters,
+                                        dataset=rs.state['dataset'], client_name=rs.state['client'],
                                         data=rs.state['data'], sampling_type=rs.state['sampling_type'],
                                         outputs_server=rs.state['outputs_server'],
                                         outputs_client=rs.state['outputs_client'])
 
-        rs.add('clusters', cluster_list)
+        rs.set('clusters', cluster_list)
 
         data = {'nrOfClusters': len(cluster_list),
                 'clusterList': cluster_list}

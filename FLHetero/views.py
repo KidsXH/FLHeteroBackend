@@ -6,22 +6,16 @@ from django.views.decorators.csrf import csrf_exempt
 import numpy as np
 
 from FLHeteroBackend import settings
-from pca import get_cluster_list, CPCA, pca_weights
+from cluster import get_cluster_list
 from . import RunningState
 from utils import load_history, load_samples, load_outputs, load_weights, sample_weight
+from cpca import CPCA, pca_weights
 
 rs = RunningState()
 
 
 def hello(request):
     return JsonResponse('Hello', safe=False)
-
-
-@csrf_exempt
-def customize(request):
-    if request.method == 'POST':
-        data = {}
-        return JsonResponse(data)
 
 
 # path('datasets/', views.datasets),
@@ -35,21 +29,23 @@ def datasets(request):
         dataset_name = request_data['datasetName']
 
         history = load_history(dataset_name)
-        client_names = history['client_names']
-        n_clients = client_names.shape[0]
+        samples_data = np.load(os.path.join(settings.DATA_HOME[dataset_name], 'samples.npz'), allow_pickle=True)
+        client_names = samples_data['client_names']
+        n_clients = history['n_clients']
         n_rounds = history['loss'].shape[1]
 
         rs.set('dataset', dataset_name)
         rs.set('client_names', client_names)
         rs.set('n_clients', n_clients)
         rs.set('n_rounds', n_rounds)
+        rs.set('data_shape', samples_data['shape'])
+        rs.set('data_type', samples_data['type'])
 
-        data = {'labels': 'The value of the handwritten digit.',
-                'dimensions': 784,
+        data = {'type': str(samples_data['type']),
+                'dimensions': samples_data['shape'].tolist(),
+                'samplingTypes': samples_data['sampling_types'].tolist(),
                 'numberOfClients': n_clients,
                 'clientNames': client_names.tolist(),
-                'trainingDataSize': 5400,
-                'testDataSize': 600,
                 'communicationRounds': n_rounds,
                 }
 
@@ -92,7 +88,6 @@ def weights(request):
         weights_0, weights_client, weights_server, cosines = load_weights(dataset_name=rs.state['dataset'],
                                                                           client_name=rs.state['client'],
                                                                           n_rounds=rs.state['n_rounds'])
-        # print(weights_0, weights_client, weights_server, cosines)
 
         weights_0, weights_client, weights_server = sample_weight(weights_0, weights_client, weights_server, num=1000)
         weights_0, weights_client, weights_server = pca_weights(weights_0, weights_client, weights_server)
@@ -120,11 +115,7 @@ def sampling(request):
         rs.set('sampling_type', sampling_type)
         rs.set('ground_truth', ground_truth)
 
-        # samples = np.round(samples.astype(float), 5)
-        data = {'data': samples.tolist(),
-                'attr_range': [0, 255],
-                }
-        return JsonResponse(data)
+        return JsonResponse({})
 
 
 # path('labels/', views.labels),
@@ -163,11 +154,13 @@ def cpca_all(request):
         cPCA = CPCA(n_components=2)
         data = rs.state['data']
         hetero_labels = rs.state['outputs_server'] != rs.state['outputs_client']
-        cPCA.fit_transform(target=data, background=data[hetero_labels], alpha=alpha)
+        projected_data = cPCA.fit_transform(target=data, background=data[hetero_labels], alpha=alpha)
 
         data = {'alpha': cPCA.alpha,
-                'cpc1': cPCA.components_[0].tolist(),
-                'cpc2': cPCA.components_[1].tolist()}
+                'cPC1': cPCA.components_[0].tolist(),
+                'cPC2': cPCA.components_[1].tolist(),
+                'projectedData': projected_data.tolist(),
+                }
 
         rs.set('cpca_all_result', data)
 
@@ -201,7 +194,6 @@ def cluster(request):
 def cpca_cluster(request):
     if request.method == 'POST':
         request_data = json.loads(request.body)
-        # print(request_data)
         alpha = None
         if 'alpha' in request_data.keys():
             alpha = request_data['alpha']
@@ -219,16 +211,45 @@ def cpca_cluster(request):
 
         fg = np.concatenate((data[homo_idx], bg))
 
-        # print('fg: {}, bg: {}, alpha: {}'.format(fg.shape, bg.shape, alpha))
-
         cPCA = CPCA(n_components=2)
-        cPCA.fit_transform(target=fg, background=bg, alpha=alpha)
+        cPCA.fit(target=fg, background=bg, alpha=alpha)
+
+        local_data, _ = load_samples(datasets=rs['dataset'], client_name=rs['client'], sampling_type='local')
+        projected_data = cPCA.transform(local_data)
 
         data = {'alpha': cPCA.alpha,
-                'cpc1': cPCA.components_[0].tolist(),
-                'cpc2': cPCA.components_[1].tolist()}
+                'cPC1': cPCA.components_[0].tolist(),
+                'cPC2': cPCA.components_[1].tolist(),
+                'projectedData': projected_data.tolist(),
+                }
 
         return JsonResponse(data)
+
+
+# path('instance/', views.instance),
+@csrf_exempt
+def instance(request):
+    if request.method == 'POST':
+        request_data = json.loads(request.body)
+        data_index = request_data['dataIndex']
+
+        data, _ = load_samples(datasets=rs['dataset'], client_name=rs['client'], sampling_type='local')
+
+        return JsonResponse({'data': data[data_index].tolist()})
+
+
+# path('instance/', views.instance),
+@csrf_exempt
+def attribute(request):
+    if request.method == 'POST':
+        request_data = json.loads(request.body)
+        dim_index = request_data['dimIndex']
+
+        data, _ = load_samples(datasets=rs['dataset'], client_name=rs['client'], sampling_type='local')
+
+        attr_data = data[:, dim_index]
+
+        return JsonResponse({'data': attr_data.tolist()})
 
 
 # path('annotation/', views.annotation),

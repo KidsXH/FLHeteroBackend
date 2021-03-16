@@ -12,6 +12,8 @@ urlpatterns = [
     path('cpca/all/', views.cpca_all),
     path('cluster/', views.cluster),
     path('cpca/cluster/', views.cpca_cluster),
+    path('instance/', views.instance),
+    path('attribute/', views.attribute),
     path('annotation/', views.annotation),
     path('annotationList/', views.annotation_list),
 ]

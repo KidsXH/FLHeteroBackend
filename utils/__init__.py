@@ -16,8 +16,8 @@ def load_samples0(filename):
     return samples, local_data, ground_truth, outputs_client, outputs_server
 
 
-def load_samples(datasets, client_name, sampling_type):
-    samples_file = os.path.join(settings.DATA_HOME[datasets], 'samples.npz')
+def load_samples(dataset, client_name, sampling_type):
+    samples_file = os.path.join(settings.DATA_HOME[dataset], 'samples.npz')
     samples_data = np.load(samples_file, allow_pickle=True)
     client_names = samples_data['client_names']
     client_idx = np.where(client_names == client_name)[0][0]

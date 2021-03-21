@@ -4,18 +4,18 @@ from time import time
 import numpy as np
 
 from FLHeteroBackend import settings
-from cluster import build_tree, create_affinity
+from cluster import create_affinity
 
 
-def preprocess(dataset, client_names, sampling_types):
-    build_tree(dataset, client_names, sampling_types)
-    create_affinity(dataset, client_names, sampling_types)
+def preprocess(dataset, client_names):
+    create_affinity(dataset, client_names)
 
 
 if __name__ == '__main__':
     start_time = time()
-    create_affinity(dataset='mnist', client_list=['Client-0', 'Client-2'], sampling_types=['local', 'stratified'])
-    # preprocess(dataset='mnist', client_names=['Client-0', 'Client-2'], sampling_types=['local', 'stratified'])
+    preprocess(dataset='cifar10', client_names=['Client-0', 'Client-1', 'Client-2', 'Client-3'])
+    # preprocess(dataset='face', client_names=['Client-0', 'Client-1'])
+    # preprocess(dataset='cifar10', client_names=['Client-2', 'Client-7'])
     print('Finish in', time() - start_time)
     # samples_file = os.path.join(settings.DATA_HOME['mnist'], 'samples.npz')
     # samples = np.load(samples_file)

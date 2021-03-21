@@ -84,11 +84,13 @@ def load_history(dataset_name):
     n_clients = client_names.shape[0]
     loss = data['loss']
     val_acc = data['val_acc']
-    n_rounds = loss.shape[0]
+    tot_acc = data['tot_acc']
+    n_rounds = loss.shape[1]
     return {'client_names': client_names,
             'n_clients': n_clients,
             'loss': loss,
             'val_acc': val_acc,
+            'tot_acc': tot_acc,
             'n_rounds': n_rounds,
             }
 

@@ -73,10 +73,12 @@ def client(request):
         history = load_history(rs.state['dataset'])
         loss = history['loss'][client_idx][0]
         val_acc = history['val_acc'][client_idx][0]
+        tot_acc = history['tot_acc'][client_idx][0]
 
         data = {
             'loss': loss.tolist(),
             'valAcc': val_acc.tolist(),
+            'totAcc': tot_acc.tolist()
         }
         return JsonResponse(data)
 
@@ -108,7 +110,7 @@ def sampling(request):
         request_data = json.loads(request.body)
         sampling_type = request_data['samplingType']
 
-        samples, ground_truth = load_samples(datasets=rs.state['dataset'], client_name=rs.state['client'],
+        samples, ground_truth = load_samples(dataset=rs.state['dataset'], client_name=rs.state['client'],
                                              sampling_type=sampling_type)
 
         rs.set('data', samples)
@@ -214,7 +216,7 @@ def cpca_cluster(request):
         cPCA = CPCA(n_components=2)
         cPCA.fit(target=fg, background=bg, alpha=alpha)
 
-        local_data, _ = load_samples(datasets=rs['dataset'], client_name=rs['client'], sampling_type='local')
+        local_data, _ = load_samples(dataset=rs['dataset'], client_name=rs['client'], sampling_type='local')
         projected_data = cPCA.transform(local_data)
 
         data = {'alpha': cPCA.alpha,
@@ -233,7 +235,7 @@ def instance(request):
         request_data = json.loads(request.body)
         data_index = request_data['dataIndex']
 
-        data, _ = load_samples(datasets=rs['dataset'], client_name=rs['client'], sampling_type='local')
+        data, _ = load_samples(dataset=rs['dataset'], client_name=rs['client'], sampling_type='local')
 
         return JsonResponse({'data': data[data_index].tolist()})
 
@@ -245,7 +247,7 @@ def attribute(request):
         request_data = json.loads(request.body)
         dim_index = request_data['dimIndex']
 
-        data, _ = load_samples(datasets=rs['dataset'], client_name=rs['client'], sampling_type='local')
+        data, _ = load_samples(dataset=rs['dataset'], client_name=rs['client'], sampling_type='local')
 
         attr_data = data[:, dim_index]
 

@@ -1,12 +1,14 @@
 import json
 import os
 
+import torch
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 import numpy as np
 
 from FLHeteroBackend import settings
 from cluster import get_cluster_list
+from cpca.cpca_gpu import CPCA_GPU
 from . import RunningState
 from utils import load_history, load_samples, load_outputs, load_weights, sample_weight
 from cpca import CPCA, pca_weights
@@ -153,14 +155,22 @@ def cpca_all(request):
         if 'alpha' in request_data.keys():
             alpha = request_data['alpha']
 
-        cPCA = CPCA(n_components=2)
         data = rs.state['data']
         hetero_labels = rs.state['outputs_server'] != rs.state['outputs_client']
-        projected_data = cPCA.fit_transform(target=data, background=data[hetero_labels], alpha=alpha)
 
-        data = {'alpha': cPCA.alpha,
-                'cPC1': cPCA.components_[0].tolist(),
-                'cPC2': cPCA.components_[1].tolist(),
+        with torch.no_grad():
+            cPCA = CPCA_GPU(n_components=2)
+            projected_data = cPCA.fit_transform(target=data, background=data[hetero_labels], alpha=alpha)
+            components = cPCA.get_components()
+            alpha = cPCA.get_alpha()
+
+        projected_data = np.round(projected_data, 6).astype(float)
+        components = np.round(components, 6).astype(float)
+        alpha = np.round(alpha, 6).astype(float)
+
+        data = {'alpha': alpha,
+                'cPC1': components[0].tolist(),
+                'cPC2': components[1].tolist(),
                 'projectedData': projected_data.tolist(),
                 }
 
@@ -213,15 +223,22 @@ def cpca_cluster(request):
 
         fg = np.concatenate((data[homo_idx], bg))
 
-        cPCA = CPCA(n_components=2)
-        cPCA.fit(target=fg, background=bg, alpha=alpha)
-
         local_data, _ = load_samples(dataset=rs['dataset'], client_name=rs['client'], sampling_type='local')
-        projected_data = cPCA.transform(local_data)
 
-        data = {'alpha': cPCA.alpha,
-                'cPC1': cPCA.components_[0].tolist(),
-                'cPC2': cPCA.components_[1].tolist(),
+        with torch.no_grad():
+            cPCA = CPCA_GPU(n_components=2)
+            cPCA.fit(target=fg, background=bg, alpha=alpha)
+            projected_data = cPCA.transform(local_data)
+            components = cPCA.get_components()
+            alpha = cPCA.get_alpha()
+
+        projected_data = np.round(projected_data, 6).astype(float)
+        components = np.round(components, 6).astype(float)
+        alpha = np.round(alpha, 6).astype(float)
+
+        data = {'alpha': alpha,
+                'cPC1': components[0].tolist(),
+                'cPC2': components[1].tolist(),
                 'projectedData': projected_data.tolist(),
                 }
 

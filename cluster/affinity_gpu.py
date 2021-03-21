@@ -9,35 +9,21 @@ from utils import load_samples
 
 
 def calculate_affinity_gpu(data):
-    data = torch.tensor(data).float().cuda()  # type: torch.Tensor
+    data = torch.tensor(data).double().cuda()  # type: torch.Tensor
 
     n, d = data.shape
 
-    # t = time()
     distances = pdist(data)
-    # print('pdist', time() - t)
 
-    distances_mat = torch.zeros((n, n)).float().cuda()
-
-    # t = time()
+    distances_mat = torch.zeros((n, n)).double().cuda()
     cur_idx = 0
     for i in range(n):
         distances_mat[i, i + 1:] = distances[cur_idx: cur_idx + (n - i - 1)]
         cur_idx += (n - i - 1)
-    # print(cur_idx)
-    # print('dist_mat', time() - t)
-    # t = time()
     distances_mat = distances_mat + distances_mat.T
-
-    # print(distances_mat.shape)
-
-    # print('dist.T', time() - t)
-    # t = time()
-    rank = torch.zeros((n, n)).float().cuda()
+    rank = torch.zeros((n, n)).double().cuda()
     for i in range(n):
         rank[i] = torch.argsort(torch.argsort(distances_mat[i]))
-    # print('rank', time() - t)
-    #
     affinity = rank * rank.T
 
     return affinity.cpu().numpy()

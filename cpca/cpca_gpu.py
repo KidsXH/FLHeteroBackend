@@ -6,7 +6,7 @@ from sklearn.cluster import SpectralClustering
 
 
 class CPCA_GPU(object):
-    DEFAULT_ALPHAS = torch.tensor(np.concatenate(([0], np.logspace(-1, 3, 39)))).cuda()
+    DEFAULT_ALPHAS = torch.tensor(np.concatenate(([0], np.logspace(-1, 3, 39)))).double().cuda()
 
     def __init__(self, n_components=2):
         self.n_components = n_components
@@ -27,10 +27,10 @@ class CPCA_GPU(object):
         return self.transform(target)
 
     def fit(self, target, background, alpha=None):
-        self.fg = torch.tensor(target).float().cuda()
+        self.fg = torch.tensor(target).double().cuda()
         self.fg_n, self.fg_d = self.fg.shape
 
-        self.bg = torch.tensor(background).float().cuda()
+        self.bg = torch.tensor(background).double().cuda()
         self.bg_n, self.bg_d = self.bg.shape
 
         mu = torch.mean(self.fg, 0)
@@ -52,7 +52,7 @@ class CPCA_GPU(object):
         if alpha is not None:
             self.update_components(alpha)
 
-        X = torch.tensor(X).float().cuda()
+        X = torch.tensor(X).double().cuda()
         new_X = X.mm(self.components_.T)
 
         return new_X.cpu().numpy()
@@ -61,14 +61,16 @@ class CPCA_GPU(object):
         self.alpha = alpha
         sigma = self.fg_cov - alpha * self.bg_cov
         w, v = torch.linalg.eigh(sigma)
-        v_top = v.filp()[:, :2]
+        eig_idx = torch.tensor(np.argpartition(w.cpu().numpy(), -self.n_components)[-self.n_components:])
+        eig_idx = eig_idx[torch.argsort(-w[eig_idx])]
+        v_top = v[:, eig_idx]
         self.components_ = v_top.T
 
     def find_best_alpha(self, alphas=None, n_candidates=5):
         if alphas is None:
             alphas = self.DEFAULT_ALPHAS
 
-        affinity = self.create_affinity_matrix(alphas)
+        affinity = self.create_affinity_matrix(alphas).cpu().numpy()
 
         spectral = SpectralClustering(n_clusters=n_candidates, affinity='precomputed')
 
@@ -77,12 +79,11 @@ class CPCA_GPU(object):
 
         # select middle candidate as the best one
 
-        first_idx = torch.sort(
-            torch.tensor([torch.where(labels == label)[0][0] for label in torch.unique(labels)]).cuda())
+        first_idx = np.sort([np.where(labels == label)[0][0] for label in np.unique(labels)])
         selected_label = labels[first_idx[n_candidates // 2]]
 
-        idx = torch.where(labels == selected_label)[0]
-        affinity_sub_matrix = affinity[idx][:, idx]
+        idx = np.where(labels == selected_label)[0]
+        affinity_sub_matrix = torch.tensor(affinity[idx][:, idx])
         sum_affinities = torch.sum(affinity_sub_matrix, 0)
         exemplar_idx = idx[torch.argmax(sum_affinities)]
         best_alpha = alphas[exemplar_idx]
@@ -114,3 +115,12 @@ class CPCA_GPU(object):
         affinity = affinity + affinity.T
         affinity_matrix = torch.nan_to_num(affinity)
         return affinity_matrix
+
+    def get_components(self):
+        return self.components_.cpu().numpy()
+
+    def get_alpha(self):
+        alpha = self.alpha
+        if torch.is_tensor(alpha):
+            return alpha.item()
+        return alpha

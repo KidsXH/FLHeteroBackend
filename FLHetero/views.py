@@ -210,13 +210,13 @@ def cpca_cluster(request):
         if 'alpha' in request_data.keys():
             alpha = request_data['alpha']
 
-        cluster_id = request_data['clusterID']
+        bg_data_idx = request_data['dataIndex']
 
         data = rs.state['data']
-        hetero_idx = rs.state['clusters'][cluster_id]['heteroIndex']
+        # hetero_idx = rs.state['clusters'][cluster_id]['heteroIndex']
         homo_idx = rs.state['outputs_server'] == rs.state['outputs_client']
 
-        bg = data[hetero_idx]
+        bg = data[bg_data_idx]
 
         if bg.shape[0] == 1:
             return JsonResponse(rs.state['cpca_all_result'])

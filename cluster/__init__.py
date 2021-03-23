@@ -7,27 +7,41 @@ from FLHeteroBackend import settings
 from cluster.affinity_gpu import calculate_affinity_gpu
 
 
-def get_cluster_list(n_clusters, dataset, client_name, data, sampling_type, outputs_client, outputs_server):
+def get_cluster_list(n_clusters, dataset, client_name, data, sampling_type, outputs_client, outputs_server,
+                     method='rank'):
     n = data.shape[0]
 
     # Hetero
     idx = outputs_client != outputs_server
     hetero_idx = np.arange(0, n, 1)[idx]
 
-    affinity = load_affinity(dataset, client_name, sampling_type)
-    affinity = affinity[idx][:, idx]
+    if method == 'rank':
+        affinity = load_affinity(dataset, client_name, sampling_type)
+        affinity = affinity[idx][:, idx]
 
-    if n_clusters is None:
-        cls = AgglomerativeClustering(n_clusters=2, affinity='precomputed', linkage='single', compute_distances=True)
-        cls.fit_predict(affinity)
-        distance_rev = cls.distances_[:][::-1]
-        acceleration_rev = np.diff(distance_rev, 1)
-        n_clusters = acceleration_rev.argmax() + 2
+        if n_clusters is None:
+            cls = AgglomerativeClustering(n_clusters=2, affinity='precomputed', linkage='single', compute_distances=True)
+            cls.fit_predict(affinity)
+            distance_rev = cls.distances_[:][::-1]
+            acceleration_rev = np.diff(distance_rev, 1)
+            n_clusters = acceleration_rev.argmax() + 2
 
-    cls = AgglomerativeClustering(n_clusters=n_clusters, affinity='precomputed', linkage='single')
-    cluster_labels = cls.fit_predict(affinity)  # type: np.ndarray
-    all_hetero_size = [(cluster_labels == ci).sum() for ci in range(n_clusters)]
-    cluster_rank = np.argsort(all_hetero_size)[::-1]
+        cls = AgglomerativeClustering(n_clusters=n_clusters, affinity='precomputed', linkage='single')
+        cluster_labels = cls.fit_predict(affinity)  # type: np.ndarray
+        all_hetero_size = [(cluster_labels == ci).sum() for ci in range(n_clusters)]
+        cluster_rank = np.argsort(all_hetero_size)[::-1]
+    else:
+        if n_clusters is None:
+            cls = AgglomerativeClustering(n_clusters=2, compute_distances=True)
+            cls.fit_predict(data[hetero_idx])
+            distance_rev = cls.distances_[:][::-1]
+            acceleration_rev = np.diff(distance_rev, 1)
+            n_clusters = acceleration_rev.argmax() + 2
+
+        cls = AgglomerativeClustering(n_clusters=n_clusters)
+        cluster_labels = cls.fit_predict(data[hetero_idx])  # type: np.ndarray
+        all_hetero_size = [(cluster_labels == ci).sum() for ci in range(n_clusters)]
+        cluster_rank = np.argsort(all_hetero_size)[::-1]
 
     hetero_list = []
 

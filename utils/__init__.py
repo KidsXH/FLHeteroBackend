@@ -24,7 +24,7 @@ def load_samples(dataset, client_name, sampling_type):
     samples = {
         'local': samples_data['local'][client_idx],
         'stratified': samples_data['stratified'][client_idx],
-        # 'systematic': samples_data['systematic_data'],
+        'systematic': samples_data['systematic'][client_idx],
     }
     ground_truth = samples_data['ground_truth'][client_idx]
 

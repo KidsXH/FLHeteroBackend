@@ -129,8 +129,8 @@ def labels(request):
         request_data = json.loads(request.body)
         cm_round = request_data['round']
 
-        output_labels = load_outputs(datasets=rs.state['dataset'], client_name=rs.state['client'], cm_round=cm_round,
-                                     sampling_type=rs.state['sampling_type'])
+        output_labels = load_outputs(datasets=rs['dataset'], client_name=rs['client'],
+                                     sampling_type=rs['sampling_type'], cm_round=cm_round)
         rs.add_dict(output_labels)
         rs.set('cm_round', cm_round)
 
@@ -189,10 +189,9 @@ def cluster(request):
             n_clusters = request_data['nrOfClusters']
 
         cluster_list = get_cluster_list(n_clusters=n_clusters,
-                                        dataset=rs.state['dataset'], client_name=rs.state['client'],
-                                        data=rs.state['data'], sampling_type=rs.state['sampling_type'],
-                                        outputs_server=rs.state['outputs_server'],
-                                        outputs_client=rs.state['outputs_client'])
+                                        dataset=rs['dataset'], client_name=rs['client'],
+                                        data=rs['data'], sampling_type=rs['sampling_type'],
+                                        outputs_server=rs['outputs_server'], outputs_client=rs['outputs_client'])
 
         rs.set('clusters', cluster_list)
 
@@ -213,7 +212,11 @@ def cpca_cluster(request):
         bg_data_idx = request_data['dataIndex']
 
         data = rs.state['data']
-        # hetero_idx = rs.state['clusters'][cluster_id]['heteroIndex']
+        # hetero_idx = rs.state['clusters'][0]['heteroIndex']
+        #
+        # print(np.arange(0, data.shape[0], 1)[hetero_idx].shape)
+        # print(len(bg_data_idx))
+
         homo_idx = rs.state['outputs_server'] == rs.state['outputs_client']
 
         bg = data[bg_data_idx]

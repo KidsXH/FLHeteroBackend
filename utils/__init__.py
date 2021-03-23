@@ -31,7 +31,7 @@ def load_samples(dataset, client_name, sampling_type):
     return samples[sampling_type], ground_truth
 
 
-def load_outputs(datasets, client_name, cm_round, sampling_type):
+def load_outputs(datasets, client_name, sampling_type, cm_round):
     output_file = os.path.join(settings.HISTORY_DIR[datasets], 'outputs',
                                '{}_Server_r{}.npz'.format(client_name, cm_round))
     outputs_server = np.load(output_file)[sampling_type]

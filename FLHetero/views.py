@@ -10,7 +10,7 @@ from FLHeteroBackend import settings
 from cluster import get_cluster_list
 from cpca.cpca_gpu import CPCA_GPU
 from . import RunningState
-from utils import load_history, load_samples, load_outputs, load_weights, sample_weight
+from utils import load_history, load_samples, load_outputs, load_weights, sample_weight, get_load_data_size
 from cpca import CPCA, pca_weights
 
 rs = RunningState()
@@ -64,23 +64,26 @@ def client(request):
         request_data = json.loads(request.body)
         client_name = request_data['clientName']
 
-        if client_name not in rs.state['client_names']:
+        if client_name not in rs['client_names']:
             return HttpResponseBadRequest
 
         rs.set('client', client_name)
         rs.set('annotations', [])
 
-        client_idx = np.where(rs.state['client_names'] == client_name)
+        client_idx = np.where(rs['client_names'] == client_name)
 
-        history = load_history(rs.state['dataset'])
+        history = load_history(rs['dataset'])
         loss = history['loss'][client_idx][0]
         val_acc = history['val_acc'][client_idx][0]
         tot_acc = history['tot_acc'][client_idx][0]
+        train_size, test_size = get_load_data_size(rs['dataset'], client_name)
 
         data = {
             'loss': loss.tolist(),
             'valAcc': val_acc.tolist(),
-            'totAcc': tot_acc.tolist()
+            'totAcc': tot_acc.tolist(),
+            'trainSize': int(train_size),
+            'testSize': int(test_size),
         }
         return JsonResponse(data)
 

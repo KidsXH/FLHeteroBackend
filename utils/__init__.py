@@ -95,6 +95,16 @@ def load_history(dataset_name):
             }
 
 
+def get_load_data_size(dataset, client_name):
+    samples_file = os.path.join(settings.DATA_HOME[dataset], 'samples.npz')
+    samples_data = np.load(samples_file, allow_pickle=True)
+    client_names = samples_data['client_names']
+    client_idx = np.where(client_names == client_name)[0][0]
+    train_size = samples_data['train_size'][client_idx]
+    test_size = samples_data['test_size'][client_idx]
+    return train_size, test_size
+
+
 def get_cosines(weights_0, weights_server, weights_client):
     w0 = weights_0
     cosines = []

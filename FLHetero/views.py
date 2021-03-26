@@ -282,11 +282,25 @@ def attribute(request):
 def annotation(request):
     if request.method == 'POST':
         request_data = json.loads(request.body)
-        data_index = request_data['dataIndex']
-        text = request_data['text']
-        rs.state['annotations'].append({'round': rs.state['cm_round'],
-                                        'text': text,
-                                        'dataIndex': data_index})
+        command = request_data['command']
+
+        if command == 'add':
+            data_index = request_data['dataIndex']
+            text = request_data['text']
+            rs['annotations'].append({'round': rs['cm_round'],
+                                      'text': text,
+                                      'dataIndex': data_index})
+        if command == 'del':
+            ann_id = request_data['annotationId']
+            annotations = rs['annotations']
+            if 0 <= ann_id < len(annotations):
+                new_annotations = annotations[:ann_id]
+                if ann_id + 1 < len(annotations):
+                    new_annotations += annotations[ann_id + 1:]
+                rs.set('annotations', new_annotations)
+            else:
+                return HttpResponseBadRequest()
+
         return HttpResponse()
 
 
@@ -294,4 +308,4 @@ def annotation(request):
 @csrf_exempt
 def annotation_list(request):
     if request.method == 'GET':
-        return JsonResponse({'annotationList': rs.state['annotations']})
+        return JsonResponse({'annotationList': rs['annotations']})

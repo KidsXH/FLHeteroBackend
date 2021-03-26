@@ -1,5 +1,3 @@
-from time import time
-
 import numpy as np
 from sklearn.cluster import SpectralClustering
 from sklearn.decomposition import PCA
@@ -126,15 +124,11 @@ class CPCA(object):
         k = len(alphas)
         affinity = 0.5 * np.identity(k)
 
-        # last_time = time()
-
         for alpha in alphas:
             self.update_components(alpha)
             space = self.fg.dot(self.components_.T)
             q, r = np.linalg.qr(space)
             subspaces.append(q)
-
-        # print('create_affinity_matrix finished in {}s'.format(time() - last_time))
 
         for i in range(k):
             for j in range(i + 1, k):

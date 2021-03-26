@@ -1,4 +1,4 @@
-name: KD3A
+name: FLH
 channels:
   - pytorch
   - defaults
@@ -68,6 +68,4 @@ dependencies:
   - yaml=0.2.5=he774522_0
   - zlib=1.2.11=h62dcd97_4
   - zstd=1.4.5=h04227a9_0
-  - pip:
-    - pybind11==2.6.2
-prefix: C:\miniconda3\envs\KD3A
+prefix: C:\miniconda3\envs\FLH

@@ -1,5 +1,3 @@
-from time import time
-
 import torch
 import numpy as np
 from sklearn.cluster import SpectralClustering
@@ -96,15 +94,11 @@ class CPCA_GPU(object):
         k = len(alphas)
         affinity = torch.tensor(0.5 * np.identity(k)).cuda()
 
-        # last_time = time()
-
         for alpha in alphas:
             self.update_components(alpha)
             space = self.fg.mm(self.components_.T)
             q, r = torch.linalg.qr(space)
             subspaces.append(q)
-
-        # print('create_affinity_matrix finished in {}s'.format(time() - last_time))
 
         for i in range(k):
             for j in range(i + 1, k):

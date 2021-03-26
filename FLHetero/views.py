@@ -6,7 +6,7 @@ from django.http import JsonResponse, HttpResponseBadRequest, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 import numpy as np
 
-from FLHeteroBackend import settings
+from FLHeteroBackend.settings import USE_GPU, DATA_HOME
 from cluster import get_cluster_list
 from cpca.cpca_gpu import CPCA_GPU
 from . import RunningState
@@ -24,14 +24,14 @@ def hello(request):
 @csrf_exempt
 def datasets(request):
     if request.method == 'GET':
-        data = {'datasetNames': list(settings.DATA_HOME.keys())}
+        data = {'datasetNames': list(DATA_HOME.keys())}
         return JsonResponse(data)
     if request.method == 'POST':
         request_data = json.loads(request.body)
         dataset_name = request_data['datasetName']
 
         history = load_history(dataset_name)
-        samples_data = np.load(os.path.join(settings.DATA_HOME[dataset_name], 'samples.npz'), allow_pickle=True)
+        samples_data = np.load(os.path.join(DATA_HOME[dataset_name], 'samples.npz'), allow_pickle=True)
         client_names = samples_data['client_names']
         n_clients = history['n_clients']
         n_rounds = history['loss'].shape[1]
@@ -161,8 +161,14 @@ def cpca_all(request):
         data = rs.state['data']
         hetero_labels = rs.state['outputs_server'] != rs.state['outputs_client']
 
-        with torch.no_grad():
-            cPCA = CPCA_GPU(n_components=2)
+        if USE_GPU:
+            with torch.no_grad():
+                cPCA = CPCA_GPU(n_components=2)
+                projected_data = cPCA.fit_transform(target=data, background=data[hetero_labels], alpha=alpha)
+                components = cPCA.get_components()
+                alpha = cPCA.get_alpha()
+        else:
+            cPCA = CPCA(n_components=2)
             projected_data = cPCA.fit_transform(target=data, background=data[hetero_labels], alpha=alpha)
             components = cPCA.get_components()
             alpha = cPCA.get_alpha()
@@ -215,10 +221,6 @@ def cpca_cluster(request):
         bg_data_idx = request_data['dataIndex']
 
         data = rs.state['data']
-        # hetero_idx = rs.state['clusters'][0]['heteroIndex']
-        #
-        # print(np.arange(0, data.shape[0], 1)[hetero_idx].shape)
-        # print(len(bg_data_idx))
 
         homo_idx = rs.state['outputs_server'] == rs.state['outputs_client']
 
@@ -230,9 +232,15 @@ def cpca_cluster(request):
         fg = np.concatenate((data[homo_idx], bg))
 
         local_data, _ = load_samples(dataset=rs['dataset'], client_name=rs['client'], sampling_type='local')
-
-        with torch.no_grad():
-            cPCA = CPCA_GPU(n_components=2)
+        if USE_GPU:
+            with torch.no_grad():
+                cPCA = CPCA_GPU(n_components=2)
+                cPCA.fit(target=fg, background=bg, alpha=alpha)
+                projected_data = cPCA.transform(local_data)
+                components = cPCA.get_components()
+                alpha = cPCA.get_alpha()
+        else:
+            cPCA = CPCA(n_components=2)
             cPCA.fit(target=fg, background=bg, alpha=alpha)
             projected_data = cPCA.transform(local_data)
             components = cPCA.get_components()

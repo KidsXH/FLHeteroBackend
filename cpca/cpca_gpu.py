@@ -4,8 +4,6 @@ from sklearn.cluster import SpectralClustering
 
 
 class CPCA_GPU(object):
-    DEFAULT_ALPHAS = torch.tensor(np.concatenate(([0], np.logspace(-1, 3, 39)))).double().cuda()
-
     def __init__(self, n_components=2):
         self.n_components = n_components
         self.fitted = False
@@ -66,7 +64,7 @@ class CPCA_GPU(object):
 
     def find_best_alpha(self, alphas=None, n_candidates=5):
         if alphas is None:
-            alphas = self.DEFAULT_ALPHAS
+            alphas = torch.tensor(np.concatenate(([0], np.logspace(-1, 3, 39)))).double().cuda()
 
         affinity = self.create_affinity_matrix(alphas).cpu().numpy()
 

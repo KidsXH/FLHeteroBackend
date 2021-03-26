@@ -140,3 +140,8 @@ class CPCA(object):
         affinity_matrix = np.nan_to_num(affinity)
         return affinity_matrix
 
+    def get_components(self):
+        return self.components_
+
+    def get_alpha(self):
+        return self.alpha

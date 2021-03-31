@@ -1,3 +1,3 @@
 # FLHeteroBackend
 
-[cPCA](../../tree/main/cpca/)
+[cPCA](./cpca/)
